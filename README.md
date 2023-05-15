@@ -5,6 +5,6 @@ Discount pdf scalper that gets the ERSA approved routes from AsA, since they are
 Oh yeah it requires java to be installed.
 
 Dependencies:
--tabula-py
--PyPDF2
--requests
+- tabula-py
+- PyPDF2
+- requests
