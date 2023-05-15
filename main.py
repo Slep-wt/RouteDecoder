@@ -11,8 +11,6 @@ import json
 # Author: Rakshan Chandu
 ##########################
 
-
-
 fprDomestic = '9. FLIGHT PLANNING OPTIONS'
 
 lookupStart = 0
