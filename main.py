@@ -1,8 +1,9 @@
 from collections import defaultdict
 from datetime import datetime, timezone
 import tabula
-import PyPDF2 as pdf2
+import PyPDF2
 import re
+import io
 import requests
 import json
 
@@ -13,6 +14,8 @@ import json
 # Author: Rakshan Chandu
 ##########################
 
+activeAirac = '23MAR2023' # default
+
 # So to automate things a little, lets update this based upon the AIRAC dates that AsA publishes
 def checkAirac():
     airacDates = ['23MAR2023','15JUN2023','07SEP2023','30NOV2023','21MAR2024','13JUN2024','05SEP2024','28NOV2024'] # good until the end of 2024
@@ -21,43 +24,40 @@ def checkAirac():
 
     for i in range(0,len(airacDates)-1):
         if datetime.strptime(airacDates[i],'%d%b%Y').replace(tzinfo=timezone.utc) <= currentTime < datetime.strptime(airacDates[i+1],'%d%b%Y').replace(tzinfo=timezone.utc):
-            activeAirac = airacDates[i]
+            cAirac = airacDates[i]
             break
-    return activeAirac
+    return cAirac
 
-def getFpr():
-    fprUrl = "https://www.airservicesaustralia.com/aip/current/ersa/GUID_ersa-fac-2-2_{airac}.pdf".format(airac = checkAirac())
+def getFpr(airac):
+    fprUrl = "https://www.airservicesaustralia.com/aip/current/ersa/GUID_ersa-fac-2-2_{x}.pdf".format(x = airac)
     req = requests.get(fprUrl, allow_redirects=True)
-    return req.content
+    return io.BytesIO(req.content)
 
-def getRawData(fpr):
+def getData(fpr):
     fprDomestic = '9. FLIGHT PLANNING OPTIONS' # Gotta hope AsA doesnt change this lol
     lookupStart = 0
-    with open('FPR_23MAR2023.pdf','rb') as f: # Bunch of tabula shit to find where the data starts, then go grab it
-        reader = pdf2.PdfReader(f)
-        for pn in range(len(reader.pages)):
-            pageText = reader.pages[pn].extract_text()
-            if re.search(fprDomestic, pageText):
-                lookupStart = pn
-                break
-        #tabula.convert_into("https://www.airservicesaustralia.com/aip/current/ersa/GUID_ersa-fac-2-2_23MAR2023.pdf","latest_routes.json", output_format='json', lattice=True, area=(24.665,22.325,553.129,400.996), pages=[str(lookupStart+1) + '-' + str(len(reader.pages))])
-        tabula.read_pdf("https://www.airservicesaustralia.com/aip/current/ersa/GUID_ersa-fac-2-2_23MAR2023.pdf","latest_routes.json", output_format='json', lattice=True, area=(24.665,22.325,553.129,400.996), pages=[str(lookupStart+1) + '-' + str(len(reader.pages))])
 
-def createJSON():
-    dat = ''
-    jmod = {'valid':'','data':[]}
-    with open('latest_routes.json', 'r') as f:
-        dat = f.read()
+    reader = PyPDF2.PdfReader(fpr)
+    for pn in range(len(reader.pages)):
+        pageText = reader.pages[pn].extract_text()
+        if re.search(fprDomestic, pageText):
+            lookupStart = pn
+            break
+
+    jdat = json.dumps(tabula.read_pdf(fpr, output_format='json', lattice=True, area=(24.665,22.325,553.129,400.996), pages=[str(lookupStart+1) + '-' + str(len(reader.pages))]), indent=None, separators=(',',':'))
+    jdat = jdat.replace('%','Jet Only').replace('#','').replace('>', 'Non-Jet Only').replace('@','Jet Only (Mil)').replace('\\r',' ')
+    jdat = re.sub(r'"(top|left|right|width|height|bottom)":(\d+\.?\d*),', '', jdat) # remove useless data like cropping and position info
+    jdat = re.sub(r'"extraction_method":"lattice",', '', jdat) # remove more junk
+    jdat = re.sub(r'\]\},\{"data":\[\[\{"text": ""\}\]\]\},\{"data":\[', ',', jdat) # reformatting mistakes made by the parser
+    jdat = re.sub(r'\]\},\{"data":\[', ',', jdat) # more reformatting
+    jdat = re.sub(r'\[\{"text": ""\}\],', '', jdat) # and some more 
+    return jdat
+
+def createJSON(dat, airac):
+    jmod = {'data':[]}
 
     with open('latest_routes.json', 'w') as f:
-        dat = dat.replace('%','Jet Only').replace('#','').replace('\\u003e', 'Non-Jet').replace('@','Jet Only (Mil)').replace('\\r',' ')
-        dat = re.sub(r'"(top|left|right|width|height|bottom)":(\d+\.?\d*),', '', dat) # remove useless data
-        dat = re.sub(r'"(extraction_method)":"lattice",', '', dat) # remove more junk
-        dat = re.sub(r'\]\},\{"data":\[\[\{"text":""\}\]\]\},\{"data":\[', ',', dat) # reformatting mistakes made by the parser
-        dat = re.sub(r'\]\},\{"data":\[', ',', dat) # more reformatting
-        dat = re.sub(r'\[\{"text":""\}\],', '', dat) # and some more
         jorg = json.loads(dat)
-
         pdep = ''
         pdes = ''
 
@@ -112,9 +112,16 @@ def createJSON():
                     if (len(jsecRoute) != 0):
                         jmod['data'].append(jsecRoute)
 
-        dat = json.dumps(jmod)
+        dat = json.dumps(jmod,indent=None, separators=(',',':'))
         f.write(dat) # done, got no clue if something will break this due to the limited data to test it on, but oh well
 
 # Aight time to do cool shit
-getRawData(getFpr())
-createJSON()
+
+def main():
+    activeAirac = checkAirac()
+    fpr = getFpr(activeAirac)
+    rawData = getData(fpr)
+    createJSON(rawData, activeAirac)
+
+if __name__ == '__main__':
+    main()
