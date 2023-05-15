@@ -22,7 +22,7 @@ with open('FPR_23MAR2023.pdf','rb') as f:
         if re.search(fprDomestic, pageText):
             lookupStart = pn
             break
-    tabula.convert_into("https://www.airservicesaustralia.com/aip/current/ersa/GUID_ersa-fac-2-2_23MAR2023.pdf","latest_routes.json", output_format='json', lattice=True, stream=False, pages=[str(lookupStart+1) + '-' + str(len(reader.pages))])
+    tabula.convert_into("https://www.airservicesaustralia.com/aip/current/ersa/GUID_ersa-fac-2-2_23MAR2023.pdf","latest_routes.json", output_format='json', lattice=True, area=(24.665,22.325,553.129,400.996), pages=[str(lookupStart+1) + '-' + str(len(reader.pages))])
 
 dat = ''
 jmod = {'data':[]}
@@ -41,36 +41,57 @@ with open('latest_routes.json', 'w') as f:
     pdep = ''
     pdes = ''
 
-    noteFinder = re.compile(r'\s\([A-Z].*\)')
+    noteFinder = re.compile(r'\s\([A-z].*\)')
+    crappyFormatFinder = re.compile(r'(?<=DCT)\s(?=DCT)')
+
 
     for routedata in jorg[0]['data']: # rebuild the json from the ground up (so its not fucked)
         if (5 <= len(routedata) <= 6):
             jroute = defaultdict(dict)
+            jsecRoute = defaultdict(dict)
             dep = str(routedata[0]['text'])
             des = str(routedata[1]['text'])
             notes = str(routedata[2]['text'])
             route = str(routedata[4]['text'])
+            acftType = 'Any'
 
-            hasMatch = noteFinder.search(route) # check for any route notes
-            if hasMatch:
-                route = noteFinder.sub('', route)
+            if (len(dep) <= 4 and len(des) <= 4):
                 if notes != '':
-                    notes += hasMatch.group(0)
-                else:
-                    notes = hasMatch.group(0)[1:]
+                    acftType = notes
+                    notes = ''
 
-            if dep == '': # is this an alternate approved route?
-                dep = pdep
-                des = pdes
+                hasNote = noteFinder.search(route) # check for any route notes
+                if hasNote:
+                    route = noteFinder.sub('', route)
+                    notes = hasNote.group(0)[1:]
 
-            jroute['dep'] = dep
-            jroute['des'] = des
-            jroute['route'] = route
-            jroute['notes'] = notes
+                if dep == '' and des == '': # is this an alternate approved route?
+                    dep = pdep
+                    des = pdes
 
-            pdep = dep
-            pdes = des
-            jmod['data'].append(jroute)
+                hasCrappyFormat = crappyFormatFinder.search(route)
+                if hasCrappyFormat:
+                    splitRoutes = crappyFormatFinder.split(route)
+                    route = splitRoutes[0]
+                    secRoute = splitRoutes[1]
+                    jsecRoute['dep'] = dep
+                    jsecRoute['des'] = des
+                    jsecRoute['route'] = secRoute
+                    jsecRoute['acftType'] = acftType
+                    jsecRoute['notes'] = notes
+
+                jroute['dep'] = dep
+                jroute['des'] = des
+                jroute['route'] = route
+                jroute['acftType'] = acftType
+                jroute['notes'] = notes
+
+                pdep = dep
+                pdes = des
+                
+                jmod['data'].append(jroute)
+                if (len(jsecRoute) != 0):
+                    jmod['data'].append(jsecRoute)
 
     dat = json.dumps(jmod)
     f.write(dat)
