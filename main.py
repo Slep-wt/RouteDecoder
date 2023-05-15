@@ -20,7 +20,6 @@ activeAirac = '23MAR2023' # default
 def checkAirac():
     airacDates = ['23MAR2023','15JUN2023','07SEP2023','30NOV2023','21MAR2024','13JUN2024','05SEP2024','28NOV2024'] # good until the end of 2024
     currentTime = datetime.now(timezone.utc)
-    activeAirac = ''
 
     for i in range(0,len(airacDates)-1):
         if datetime.strptime(airacDates[i],'%d%b%Y').replace(tzinfo=timezone.utc) <= currentTime < datetime.strptime(airacDates[i+1],'%d%b%Y').replace(tzinfo=timezone.utc):
@@ -54,7 +53,9 @@ def getData(fpr):
     return jdat
 
 def createJSON(dat, airac):
-    jmod = {'data':[]}
+    jmod = {'valid':'','data':[]}
+    
+    jmod['valid'] = airac
 
     with open('latest_routes.json', 'w') as f:
         jorg = json.loads(dat)
