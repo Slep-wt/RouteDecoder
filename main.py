@@ -44,7 +44,6 @@ with open('latest_routes.json', 'w') as f:
     noteFinder = re.compile(r'\s\([A-z].*\)') # It does what it says
     crappyFormatFinder = re.compile(r'(?<=DCT)\s(?=DCT)') # so does this
 
-
     for routedata in jorg[0]['data']: # rebuild the json from the ground up (so its not fucked)
         if (5 <= len(routedata) <= 6):
             jroute = defaultdict(dict)
@@ -94,4 +93,4 @@ with open('latest_routes.json', 'w') as f:
                     jmod['data'].append(jsecRoute)
 
     dat = json.dumps(jmod)
-    f.write(dat) # done
+    f.write(dat) # done, got no clue if something will break this due to the limited data to test it on, but oh well
