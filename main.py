@@ -11,11 +11,11 @@ import json
 # Author: Rakshan Chandu
 ##########################
 
-fprDomestic = '9. FLIGHT PLANNING OPTIONS'
+fprDomestic = '9. FLIGHT PLANNING OPTIONS' # Gotta hope AsA doesnt change this lol
 
 lookupStart = 0
 
-with open('FPR_23MAR2023.pdf','rb') as f:
+with open('FPR_23MAR2023.pdf','rb') as f: # Bunch of tabula shit to find where the data starts, then go grab it
     reader = pdf2.PdfReader(f)
     for pn in range(len(reader.pages)):
         pageText = reader.pages[pn].extract_text()
@@ -41,8 +41,8 @@ with open('latest_routes.json', 'w') as f:
     pdep = ''
     pdes = ''
 
-    noteFinder = re.compile(r'\s\([A-z].*\)')
-    crappyFormatFinder = re.compile(r'(?<=DCT)\s(?=DCT)')
+    noteFinder = re.compile(r'\s\([A-z].*\)') # It does what it says
+    crappyFormatFinder = re.compile(r'(?<=DCT)\s(?=DCT)') # so does this
 
 
     for routedata in jorg[0]['data']: # rebuild the json from the ground up (so its not fucked)
@@ -69,9 +69,9 @@ with open('latest_routes.json', 'w') as f:
                     dep = pdep
                     des = pdes
 
-                hasCrappyFormat = crappyFormatFinder.search(route)
+                hasCrappyFormat = crappyFormatFinder.search(route) # and is this route fucked?
                 if hasCrappyFormat:
-                    splitRoutes = crappyFormatFinder.split(route)
+                    splitRoutes = crappyFormatFinder.split(route) # ah shit its fucked... time to fix it
                     route = splitRoutes[0]
                     secRoute = splitRoutes[1]
                     jsecRoute['dep'] = dep
@@ -94,4 +94,4 @@ with open('latest_routes.json', 'w') as f:
                     jmod['data'].append(jsecRoute)
 
     dat = json.dumps(jmod)
-    f.write(dat)
+    f.write(dat) # done
