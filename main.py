@@ -94,8 +94,7 @@ def createJSON(dat, airac):
                         dept = pdep
                         dest = pdes
 
-                    hasCrappyFormat = crappyFormatFinder.search(route) # and is this route fucked?
-                    if hasCrappyFormat:
+                    if crappyFormatFinder.search(route): # and is this route fucked?
                         splitRoutes = crappyFormatFinder.split(route) # ah shit its fucked... time to fix it
                         route = splitRoutes[0]
                         secRoute = splitRoutes[1]
