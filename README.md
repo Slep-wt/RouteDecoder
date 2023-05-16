@@ -8,3 +8,5 @@ Dependencies:
 - tabula-py
 - PyPDF2
 - requests
+
+if posting to the routes api which is in development, chuck the base url in a .env file.
