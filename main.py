@@ -1,11 +1,13 @@
 from collections import defaultdict
 from datetime import datetime, timezone
+from dotenv import load_dotenv
 import tabula
 import PyPDF2
 import re
 import io
 import requests
 import json
+import os
 
 ##########################
 # Filename: main.py
@@ -14,6 +16,9 @@ import json
 # Author: Rakshan Chandu
 ##########################
 
+load_dotenv()
+
+API_BASE_URL = os.getenv('API_BASE_URL')
 activeAirac = '23MAR2023' # default
 
 # So to automate things a little, lets update this based upon the AIRAC dates that AsA publishes
@@ -115,14 +120,20 @@ def createJSON(dat, airac):
 
         dat = json.dumps(jmod,indent=None, separators=(',',':'))
         f.write(dat) # done, got no clue if something will break this due to the limited data to test it on, but oh well
-
+        return dat
+    
+def postData(data):
+    requests.post(f'{API_BASE_URL}/routes/data', data=data, headers={'content-type':'application/json'})
+        
 # Aight time to do cool shit
 
 def main():
     activeAirac = checkAirac()
     fpr = getFpr(activeAirac)
     rawData = getData(fpr)
-    createJSON(rawData, activeAirac)
+    data = createJSON(rawData, activeAirac)
+    if API_BASE_URL is not None:
+        postData(data) 
 
 if __name__ == '__main__':
     main()
