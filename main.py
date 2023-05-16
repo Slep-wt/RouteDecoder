@@ -69,15 +69,15 @@ def createJSON(dat, airac):
             if (5 <= len(routedata) <= 6):
                 jroute = defaultdict(dict)
                 jsecRoute = defaultdict(dict)
-                dep = str(routedata[0]['text'])
-                des = str(routedata[1]['text'])
+                dept = str(routedata[0]['text'])
+                dest = str(routedata[1]['text'])
                 notes = str(routedata[2]['text'])
                 route = str(routedata[4]['text'])
-                acftType = 'Any'
+                acft = 'Any'
 
-                if (len(dep) <= 4 and len(des) <= 4):
+                if (len(dept) <= 4 and len(dest) <= 4):
                     if notes != '':
-                        acftType = notes
+                        acft = notes
                         notes = ''
 
                     hasNote = noteFinder.search(route) # check for any route notes
@@ -85,29 +85,29 @@ def createJSON(dat, airac):
                         route = noteFinder.sub('', route)
                         notes = hasNote.group(0)[1:]
 
-                    if dep == '' and des == '': # is this an alternate approved route?
-                        dep = pdep
-                        des = pdes
+                    if dept == '' and dest == '': # is this an alternate approved route?
+                        dept = pdep
+                        dest = pdes
 
                     hasCrappyFormat = crappyFormatFinder.search(route) # and is this route fucked?
                     if hasCrappyFormat:
                         splitRoutes = crappyFormatFinder.split(route) # ah shit its fucked... time to fix it
                         route = splitRoutes[0]
                         secRoute = splitRoutes[1]
-                        jsecRoute['dep'] = dep
-                        jsecRoute['des'] = des
+                        jsecRoute['dept'] = dept
+                        jsecRoute['dest'] = dest
                         jsecRoute['route'] = secRoute
-                        jsecRoute['acftType'] = acftType
+                        jsecRoute['acft'] = acft
                         jsecRoute['notes'] = notes
 
-                    jroute['dep'] = dep
-                    jroute['des'] = des
+                    jroute['dept'] = dept
+                    jroute['dest'] = dest
                     jroute['route'] = route
-                    jroute['acftType'] = acftType
+                    jroute['acft'] = acft
                     jroute['notes'] = notes
 
-                    pdep = dep
-                    pdes = des
+                    pdep = dept
+                    pdes = dest
                     
                     jmod['data'].append(jroute)
                     if (len(jsecRoute) != 0):
