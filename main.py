@@ -22,7 +22,7 @@ API_BASE_URL = os.getenv('API_BASE_URL')
 API_KEY = os.getenv('API_KEY')
 activeAirac = '07SEP2023' # default
 
-# So to automate things a little, lets update this based upon the AIRAC dates that AsA publishes
+# So to automate things a little, lets update this based upon the AIRAC dates that AsA publishes (This needs further work)
 def checkAirac():
     airacDates = ['07SEP2023','30NOV2023','21MAR2024','13JUN2024','05SEP2024','28NOV2024'] # good until the end of 2024
     currentTime = datetime.now(timezone.utc)
@@ -135,6 +135,11 @@ def main():
     data = createJSON(rawData, activeAirac)
     if API_BASE_URL is not None:
         postData(data) 
+    else:
+        f = open("latest_routes_"+activeAirac+".json","w")
+        f.writelines(data)
+        f.close()
+
 
 if __name__ == '__main__':
     main()
