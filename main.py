@@ -23,8 +23,15 @@ API_KEY = os.getenv('API_KEY')
 activeAirac = '07SEP2023' # default
 
 # So to automate things a little, lets update this based upon the AIRAC dates that AsA publishes (This needs further work)
+
+def getERSADates():
+    content = requests.get('https://www.airservicesaustralia.com/industry-info/aeronautical-information-management/document-amendment-calendar/')
+    matches = re.findall('ERSA \d{2} ... \d{4}', content.text)
+    ERSADates = [x.replace('ERSA', '').replace(' ', '') for x in matches]
+    return ERSADates
+
 def checkAirac():
-    airacDates = ['07SEP2023','30NOV2023','21MAR2024','13JUN2024','05SEP2024','28NOV2024'] # good until the end of 2024
+    airacDates = getERSADates()
     currentTime = datetime.now(timezone.utc)
 
     for i in range(0,len(airacDates)-1):
