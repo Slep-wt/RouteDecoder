@@ -19,11 +19,12 @@ import os
 load_dotenv()
 
 API_BASE_URL = os.getenv('API_BASE_URL')
-activeAirac = '23MAR2023' # default
+API_KEY = os.getenv('API_KEY')
+activeAirac = '07SEP2023' # default
 
 # So to automate things a little, lets update this based upon the AIRAC dates that AsA publishes
 def checkAirac():
-    airacDates = ['23MAR2023','15JUN2023','07SEP2023','30NOV2023','21MAR2024','13JUN2024','05SEP2024','28NOV2024'] # good until the end of 2024
+    airacDates = ['07SEP2023','30NOV2023','21MAR2024','13JUN2024','05SEP2024','28NOV2024'] # good until the end of 2024
     currentTime = datetime.now(timezone.utc)
 
     for i in range(0,len(airacDates)-1):
@@ -48,7 +49,7 @@ def getData(fpr):
             lookupStart = pn
             break
 
-    jdat = json.dumps(tabula.read_pdf(fpr, output_format='json', lattice=True, area=(24.665,22.325,553.129,400.996), pages=[str(lookupStart+1) + '-' + str(len(reader.pages))]), indent=None, separators=(',',':'))
+    jdat = json.dumps(tabula.read_pdf(fpr, output_format='json', lattice=True, area=(24.665,22.325,560,401), pages=[str(lookupStart+1) + '-' + str(len(reader.pages))]), indent=None, separators=(',',':'))
     jdat = jdat.replace('%','Jet Only').replace('#','').replace('>', 'Non-Jet Only').replace('@','Jet Only (Mil)').replace('\\r',' ')
     jdat = re.sub(r'"(top|left|right|width|height|bottom)":(\d+\.?\d*),', '', jdat) # remove useless data like cropping and position info
     jdat = re.sub(r'"extraction_method":"lattice",', '', jdat) # remove more junk
@@ -94,7 +95,8 @@ def createJSON(dat, airac):
                         dept = pdep
                         dest = pdes
 
-                    if crappyFormatFinder.search(route): # and is this route fucked?
+                    hasCrappyFormat = crappyFormatFinder.search(route) # and is this route fucked?
+                    if hasCrappyFormat:
                         splitRoutes = crappyFormatFinder.split(route) # ah shit its fucked... time to fix it
                         route = splitRoutes[0]
                         secRoute = splitRoutes[1]
@@ -122,7 +124,7 @@ def createJSON(dat, airac):
         return dat
     
 def postData(data):
-    requests.post(f'{API_BASE_URL}/routes/data', data=data, headers={'content-type':'application/json'})
+    requests.post(f'{API_BASE_URL}/routes', data=data, headers={'content-type':'application/json', 'X-API-KEY': API_KEY})
         
 # Aight time to do cool shit
 

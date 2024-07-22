@@ -9,4 +9,4 @@ Dependencies:
 - PyPDF2
 - requests
 
-if posting to the routes api which is in development, chuck the base url in a .env file.
+if posting to the routes api which is in development, chuck the base url and api key in a .env file.
