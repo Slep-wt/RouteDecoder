@@ -26,8 +26,8 @@ activeAirac = '07SEP2023' # default
 
 def getERSADates():
     content = requests.get('https://www.airservicesaustralia.com/industry-info/aeronautical-information-management/document-amendment-calendar/')
-    matches = re.findall('ERSA \d{2} ... \d{4}', content.text)
-    ERSADates = [x.replace('ERSA', '').replace(' ', '') for x in matches]
+    matches = re.findall(r'ERSA (\d{2}\s[A-Z]{3}\s\d{4})', content.text)
+    ERSADates = [x.replace(' ', '') for x in matches]
     return ERSADates
 
 def checkAirac():
