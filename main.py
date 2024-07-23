@@ -70,64 +70,62 @@ def createJSON(dat, airac):
     
     jmod['valid'] = airac
 
-    with open('latest_routes.json', 'w') as f:
-        jorg = json.loads(dat)
-        pdep = ''
-        pdes = ''
+    jorg = json.loads(dat)
+    pdep = ''
+    pdes = ''
 
-        noteFinder = re.compile(r'\s\([A-z].*\)') # It does what it says
-        crappyFormatFinder = re.compile(r'(?<=DCT)\s(?=DCT)') # so does this
+    noteFinder = re.compile(r'\s\([A-z].*\)') # It does what it says
+    crappyFormatFinder = re.compile(r'(?<=DCT)\s(?=DCT)') # so does this
 
-        for routedata in jorg[0]['data']: # rebuild the json from the ground up (so its not fucked)
-            if (5 <= len(routedata) <= 6):
-                jroute = defaultdict(dict)
-                jsecRoute = defaultdict(dict)
-                dept = str(routedata[0]['text'])
-                dest = str(routedata[1]['text'])
-                notes = str(routedata[2]['text'])
-                route = str(routedata[4]['text'])
-                acft = 'Any'
+    for routedata in jorg[0]['data']: # rebuild the json from the ground up (so its not fucked)
+        if (5 <= len(routedata) <= 6):
+            jroute = defaultdict(dict)
+            jsecRoute = defaultdict(dict)
+            dept = str(routedata[0]['text'])
+            dest = str(routedata[1]['text'])
+            notes = str(routedata[2]['text'])
+            route = str(routedata[4]['text'])
+            acft = 'Any'
 
-                if (len(dept) <= 4 and len(dest) <= 4):
-                    if notes != '':
-                        acft = notes
-                        notes = ''
+            if (len(dept) <= 4 and len(dest) <= 4):
+                if notes != '':
+                    acft = notes
+                    notes = ''
 
-                    hasNote = noteFinder.search(route) # check for any route notes
-                    if hasNote:
-                        route = noteFinder.sub('', route)
-                        notes = hasNote.group(0)[1:]
+                hasNote = noteFinder.search(route) # check for any route notes
+                if hasNote:
+                    route = noteFinder.sub('', route)
+                    notes = hasNote.group(0)[1:]
 
-                    if dept == '' and dest == '': # is this an alternate approved route?
-                        dept = pdep
-                        dest = pdes
+                if dept == '' and dest == '': # is this an alternate approved route?
+                    dept = pdep
+                    dest = pdes
 
-                    hasCrappyFormat = crappyFormatFinder.search(route) # and is this route fucked?
-                    if hasCrappyFormat:
-                        splitRoutes = crappyFormatFinder.split(route) # ah shit its fucked... time to fix it
-                        route = splitRoutes[0]
-                        secRoute = splitRoutes[1]
-                        jsecRoute['dept'] = dept
-                        jsecRoute['dest'] = dest
-                        jsecRoute['route'] = secRoute
-                        jsecRoute['acft'] = acft
-                        jsecRoute['notes'] = notes
+                hasCrappyFormat = crappyFormatFinder.search(route) # and is this route fucked?
+                if hasCrappyFormat:
+                    splitRoutes = crappyFormatFinder.split(route) # ah shit its fucked... time to fix it
+                    route = splitRoutes[0]
+                    secRoute = splitRoutes[1]
+                    jsecRoute['dept'] = dept
+                    jsecRoute['dest'] = dest
+                    jsecRoute['route'] = secRoute
+                    jsecRoute['acft'] = acft
+                    jsecRoute['notes'] = notes
 
-                    jroute['dept'] = dept
-                    jroute['dest'] = dest
-                    jroute['route'] = route
-                    jroute['acft'] = acft
-                    jroute['notes'] = notes
+                jroute['dept'] = dept
+                jroute['dest'] = dest
+                jroute['route'] = route
+                jroute['acft'] = acft
+                jroute['notes'] = notes
 
-                    pdep = dept
-                    pdes = dest
-                    
-                    jmod['data'].append(jroute)
-                    if (len(jsecRoute) != 0):
-                        jmod['data'].append(jsecRoute)
+                pdep = dept
+                pdes = dest
+                
+                jmod['data'].append(jroute)
+                if (len(jsecRoute) != 0):
+                    jmod['data'].append(jsecRoute)
 
-        dat = json.dumps(jmod,indent=None, separators=(',',':'))
-        f.write(dat) # done, got no clue if something will break this due to the limited data to test it on, but oh well
+        dat = json.dumps(jmod,indent=None, separators=(',',':')) # done, got no clue if something will break this due to the limited data to test it on, but oh well
         return dat
     
 def postData(data):
