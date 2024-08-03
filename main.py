@@ -1,13 +1,14 @@
-from collections import defaultdict
-from datetime import datetime, timezone
-from dotenv import load_dotenv
-import tabula
-import PyPDF2
-import re
 import io
-import requests
 import json
 import os
+import re
+from collections import defaultdict
+from datetime import datetime, timezone
+
+import PyPDF2
+import requests
+import tabula
+from dotenv import load_dotenv
 
 ##########################
 # Filename: main.py
@@ -39,6 +40,66 @@ def checkAirac():
             cAirac = airacDates[i]
             break
     return cAirac
+    
+def validateRoute(data):
+    adep = data['dept']
+    ades = data['dest']
+    route = data['route']
+    notes = data['notes']
+
+    if route[:3] == 'DCT' and route[-3:] == 'DCT':
+        return [data, True]
+    else:
+        print(f'[Odd Route] {adep}-{ades}: {route}')
+        amendedData = correctRoute(route)
+        if amendedData == None:
+            return [data, False]
+        else:
+            route = amendedData[0]
+            if amendedData[1] != '':
+                notes = f'{notes}. {amendedData[1]}.'
+                data['notes'] = notes
+            data['route'] = route
+            return [data, True]
+
+def correctRoute(route):
+    corrected = False
+    notes = ''
+
+    # First look for any weird restrictions AsA has placed in the route
+    substrs = re.split(r'((?:AT\s(?:OR|or)\sABV|BLW|BETWEEN\s(?:A|FL)\d*\s(?:AND|and))\s(?:A|FL)\d*\s)',route)
+    if substrs[0] == '':
+        substrs.pop(0)
+        if len(substrs) == 2:
+            notes = substrs[0][:-1]
+            route = substrs[1]
+            corrected = True
+
+    # Is there a missing direct at the end?
+    result = re.search(r'\s(\w+)$', route)
+    if result != None:
+        if result.group().strip() != 'DCT':
+            route = f'{route} DCT'
+            corrected = True
+
+    # Same but for the front
+    result = re.search(r'^(\w+)\s', route)
+    if result != None:
+        if result.group().strip() != 'DCT':
+            route = f'DCT {route}'
+            corrected = True
+
+    # Sanity check
+    if corrected:
+        result = re.search(r'[^a-zA-Z\d\s\.]', route)
+        if result != None:
+            corrected = False
+
+    if (corrected == True):
+        print(f'[Validation] Route corrected: {route}')
+        return [route, notes]
+    else:
+        return None
 
 def getFpr(airac):
     fprUrl = "https://www.airservicesaustralia.com/aip/current/ersa/GUID_ersa-fac-2-2_{x}.pdf".format(x = airac)
@@ -66,72 +127,127 @@ def getData(fpr):
     return jdat
 
 def createJSON(dat, airac):
-    jmod = {'valid':'','data':[]}
+    jmod = {'valid':'','data':[],'invalid':[]}
     
     jmod['valid'] = airac
 
-    with open('latest_routes_'+airac+'.json', 'w') as f:
-        jorg = json.loads(dat)
-        pdep = ''
-        pdes = ''
+    validRouteCount = 0
+    invalidRouteCount = 0
 
-        noteFinder = re.compile(r'\s\([A-z].*\)') # It does what it says
-        crappyFormatFinder = re.compile(r'(?<=DCT)\s(?=DCT)') # so does this
+    #with open('latest_routes_'+airac+'.json', 'w') as f:
+    jorg = json.loads(dat)
+    pdep = ''
+    pdes = ''
 
-        for routedata in jorg[0]['data']: # rebuild the json from the ground up (so its not fucked)
-            if (5 <= len(routedata) <= 6):
-                jroute = defaultdict(dict)
-                jsecRoute = defaultdict(dict)
-                dept = str(routedata[0]['text'])
-                dest = str(routedata[1]['text'])
-                notes = str(routedata[2]['text'])
-                route = str(routedata[4]['text'])
-                acft = 'Any'
+    noteFinder = re.compile(r'\s\([A-z].*\)') # It does what it says
+    #noteFinder = re.compile(r'\((.*?)\)')
+    crappyFormatFinder = re.compile(r'(?<=DCT)\s(?=DCT)') # so does this
+    crappyRestrictedAreaFinder = re.compile(r'\s[ifIF].\s[A-z0-9\s]*\:\s') # I'm coming for you AIS-AF. You cant keep getting away with crappy formatting!!!
 
-                if (len(dept) <= 4 and len(dest) <= 4):
-                    if notes != '':
-                        acft = notes
-                        notes = ''
+    for routedata in jorg[0]['data']: # rebuild the json from the ground up (so its not fucked)
+        if (5 <= len(routedata) <= 6):
 
-                    hasNote = noteFinder.search(route) # check for any route notes
-                    if hasNote:
-                        route = noteFinder.sub('', route)
-                        notes = hasNote.group(0)[1:]
+            routeArr = []
+            jroute = defaultdict(dict)
+            jsecRoute = defaultdict(dict)
 
-                    if dept == '' and dest == '': # is this an alternate approved route?
-                        dept = pdep
-                        dest = pdes
 
-                    hasCrappyFormat = crappyFormatFinder.search(route) # and is this route fucked?
-                    if hasCrappyFormat:
+
+            dept = str(routedata[0]['text'])
+            dest = str(routedata[1]['text'])
+            notes = str(routedata[2]['text'])
+            route = str(routedata[4]['text'])
+            secRoute = ''
+            acft = 'Any'
+
+            if (len(dept) <= 4 and len(dest) <= 4):
+                if notes != '':
+                    acft = notes
+                    notes = ''
+
+                hasNote = noteFinder.search(route) # check for any route notes
+                if hasNote:
+                    route = noteFinder.sub('', route)
+                    notes = hasNote.group(0)[1:]
+                
+                hasNote = noteFinder.search(notes)
+
+                if dept == '' and dest == '': # is this an alternate approved route?
+                    dept = pdep
+                    dest = pdes
+
+                hasCrappyFormat = crappyFormatFinder.search(route) # and is this route fucked?
+                hasCookedDefenceFormat = crappyRestrictedAreaFinder.search(route)
+                if hasCrappyFormat or hasCookedDefenceFormat:
+                    altnotes = notes
+                    if (hasCrappyFormat):
                         splitRoutes = crappyFormatFinder.split(route) # ah shit its fucked... time to fix it
                         route = splitRoutes[0]
                         secRoute = splitRoutes[1]
-                        jsecRoute['dept'] = dept
-                        jsecRoute['dest'] = dest
-                        jsecRoute['route'] = secRoute
-                        jsecRoute['acft'] = acft
-                        jsecRoute['notes'] = notes
+                    else:
+                        reResult = crappyRestrictedAreaFinder.search(route)
+                        splitRoutes = crappyRestrictedAreaFinder.split(route)
+                        route = splitRoutes[0]
+                        secRoute = splitRoutes[1]
+                        if altnotes == '' and reResult != None:
+                            altnotes = f'{reResult.group().strip()[:-1]}.'
+                        else:
+                             altnotes = f'{reResult.group().strip()[:-1]}. {altnotes}.'
+                    noteHasNote = noteFinder.search(altnotes)
+                    if (noteHasNote):
+                        jTertRoute = defaultdict(dict)
+                        tertroute = noteFinder.sub('', altnotes)
+                        tertnotes = hasNote.group(0)[1:]
 
-                    jroute['dept'] = dept
-                    jroute['dest'] = dest
-                    jroute['route'] = route
-                    jroute['acft'] = acft
-                    jroute['notes'] = notes
+                    jsecRoute['dept'] = dept
+                    jsecRoute['dest'] = dest
+                    jsecRoute['route'] = secRoute
+                    jsecRoute['acft'] = acft
+                    jsecRoute['notes'] = altnotes
+                    routeArr.append(jsecRoute)
 
-                    pdep = dept
-                    pdes = dest
+
+                jroute['dept'] = dept
+                jroute['dest'] = dest
+                jroute['route'] = route
+                jroute['acft'] = acft
+                jroute['notes'] = notes
+
+                pdep = dept
+                pdes = dest
+
+                validatedData = validateRoute(jroute)
+
+                if validatedData[1]:
+                    jmod['data'].append(validatedData[0])
+                    validRouteCount = validRouteCount + 1
+                else:
+                    jmod['invalid'].append(jroute)
+                    invalidRouteCount = invalidRouteCount + 1
+
+                if len(jsecRoute) != 0:
+                    validatedData = validateRoute(jsecRoute)
+                    if validatedData[1]:
+                        jmod['data'].append(validatedData[0])
+                        validRouteCount = validRouteCount + 1
+                    else:
+                        jmod['invalid'].append(jsecRoute)
+                        invalidRouteCount = invalidRouteCount + 1
                     
-                    jmod['data'].append(jroute)
-                    if (len(jsecRoute) != 0):
-                        jmod['data'].append(jsecRoute)
-
-        dat = json.dumps(jmod,indent=None, separators=(',',':'))
-        f.write(dat) # done, got no clue if something will break this due to the limited data to test it on, but oh well
-        return dat
+    dat = json.dumps(jmod,indent=None, separators=(',',':'))
+    print(f"[RouteDecoder] Found {validRouteCount} valid and {invalidRouteCount} invalid routes!")
+    return dat
     
+def writeData(filename, data):
+    with open(filename, 'w', encoding='utf-8') as f:
+        f.writelines(data)
+    print(f"Routes written to {filename}")
+
+
 def postData(data):
-    requests.post(f'{API_BASE_URL}/routes', data=data, headers={'content-type':'application/json', 'X-API-KEY': API_KEY})
+    r = requests.post(f'{API_BASE_URL}/routes', data=data, headers={'content-type':'application/json', 'X-API-KEY': API_KEY}, timeout=60)
+    print(f"Data posted to {API_BASE_URL}")
+    print(r.status_code, r.text)
         
 # Aight time to do cool shit
 
@@ -140,8 +256,17 @@ def main():
     fpr = getFpr(activeAirac)
     rawData = getData(fpr)
     data = createJSON(rawData, activeAirac)
-    if API_BASE_URL is not None:
-        postData(data) 
+    filename = "latest_routes_" + activeAirac + ".json"
+    if not os.path.exists(filename):
+        try:
+            writeData(filename, data)
+        except Exception as e:
+            print(f'Could not write to file: {e}')
+        if API_BASE_URL is not None:
+            postData(data) 
+    else:
+        print("File for this airac already exists, exiting.")
+    
 
 if __name__ == '__main__':
     main()
